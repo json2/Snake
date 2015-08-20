@@ -1,8 +1,9 @@
 function border(){
-    [System.Console]::Title = "Game of Snake -- version 1.0"
+    [System.Console]::Title = "Snake - v1.0"
     [System.Console]::BackgroundColor = $global:backgroundColor
     [System.Console]::WindowHeight = 40
     [System.Console]::WindowWidth = 80
+    [System.Console]::CursorVisible = $false
     $global:windowHeight = [System.Console]::WindowHeight
     $global:windowWidth = [System.Console]::WindowWidth
     $offsetTop = 1
@@ -73,6 +74,22 @@ function dot(){
     process{
         [System.Console]::SetCursorPosition($x, $y)
         Write-Host " " -NoNewline -BackgroundColor $color
+        resetCursor
+    }
+}
+
+function resetCursor(){
+    param(
+        [Parameter(Mandatory=$false)]
+        [switch]$clearLine
+    )
+    [System.Console]::SetCursorPosition(0, $windowHeight-2)
+    if($clearLine){
+        $str = ""
+        1..$global:windowWidth | % {
+            $str += " "
+        }
+        Write-Host $str -NoNewline
         [System.Console]::SetCursorPosition(0, $windowHeight-2)
     }
 }
@@ -101,8 +118,8 @@ function randomDot(){
     do{
         $x = (Get-Random -Minimum $global:topLeft.x -Maximum ($global:topRight.x + 1))
         $y = (Get-Random -Minimum $global:topLeft.y -Maximum ($global:bottomLeft.y + 1))
-    } while(collision $x $y)
-    #Write-Host "x: $x y: $y" -NoNewline
+    } while((collision $x $y) -or ($global:foodX -eq $x -and $global:foodY -eq $y))
+    
     $global:foodX = $x
     $global:foodY = $y
     dot $global:foodX $global:foodY $global:foodColor
@@ -119,71 +136,100 @@ function isFood(){
         [int]$y
     )
     if($x -eq $global:foodX -and $y -eq $global:foodY){
+        $global:foodCount++
         return $true
     }
     return $false
 }
 
 function updateTail(){
-    
     dot $global:snake[0].x $global:snake[0].y $global:backgroundColor
     $global:snake.RemoveAt(0)
-    
-    <#
-    dot $global:snake[$global:tail].x $global:snake[$global:tail].y $global:backgroundColor
-    $global:head = $global:tail
-    if((--$global:tail) -lt 0){
-        $global:tail = $global:snake.Length - 1
-    }
-    #>
 }
 
 function gameover(){
+    [System.Console]::SetCursorPosition([int](($global:topRight.x - $global:topLeft.x)/2) - 5, $windowHeight-2)
     Write-Host "Game Over" -ForegroundColor Red
+    Write-Host "Would you like to play again? (Y/N):" -NoNewline -ForegroundColor Cyan
+    do{
+        $response = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        if($response.character -eq 'y'){
+            return $true
+        }
+        elseif($response.character -eq 'n'){
+            return $false
+        }
+    } while($true)
 }
 
-function main(){
+function difficulty(){ 
+    Write-Host "Choose Difficulty from 1 (slowest) through 5 (fastest):" -NoNewline -ForegroundColor Cyan
+    $milliseconds = 0
+    do{
+        $response = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
+        if($response.character -eq '1'){
+            $milliseconds = 150
+        }
+        elseif($response.character -eq '2'){
+            $milliseconds = 100
+        }
+        elseif($response.character -eq '3'){
+            $milliseconds = 75
+        }
+        elseif($response.character -eq '4'){
+            $milliseconds = 50
+        }
+        elseif($response.character -eq '5'){
+            $milliseconds = 40
+        }
+    } while($milliseconds -eq 0)
+    resetCursor -clearLine
+    return $milliseconds
+}
+
+function startGame(){
     [string]$global:backgroundColor = "DarkBlue"
     border
     [string]$global:foodColor = "Gray"
     [int]$global:foodX = $null
     [int]$global:foodY = $null
+    [int]$global:foodCount = 0
     [int]$x = [int](($global:topRight.x - $global:topLeft.x)/2)
     [int]$y = [int](($global:bottomLeft.y - $global:topLeft.y)/2)
     [string]$lastKey = ""
-    [int]$global:head = 0
-    [int]$global:tail = 0
-    $global:snake = New-Object System.Collections.Generic.List[PSObject] #@()
+    [string]$lastMove = ""
+    $global:snake = New-Object System.Collections.Generic.List[PSObject]
     $global:snake.Add([psobject] @{
         x = $x
         y = $y
     })
 
     dot $x $y
-    $milliseconds = 50
+    $milliseconds = difficulty #50
     $time = (Get-Date).AddMilliseconds($milliseconds)
     
-    Write-Host "Press A-S-D-W To Start..." -NoNewline
+    Write-Host "Use arrow keys or W-A-S-D to move. Move in any direction to start..." -NoNewline
     while($true){
         $capture = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-        if($capture.character -eq 'w'){
+        if($capture.character -eq 'w' -or $capture.virtualkeycode -eq 38){
             $lastKey = 'w'
             break
         }
-        elseif($capture.character -eq 'a'){
+        elseif($capture.character -eq 'a' -or $capture.virtualkeycode -eq 37){
             $lastKey = 'a'
             break
         }
-        elseif($capture.character -eq 's'){
+        elseif($capture.character -eq 's' -or $capture.virtualkeycode -eq 40){
             $lastKey = 's'
             break
         }
-        elseif($capture.character -eq 'd'){
+        elseif($capture.character -eq 'd' -or $capture.virtualkeycode -eq 39){
             $lastKey = 'd'
             break
         }
     }
-    
+    resetCursor -clearLine
+
     #draw first food
     randomDot
 
@@ -192,48 +238,42 @@ function main(){
             try{
                 if($lastKey -eq 'w'){
                     if(collision $x ($y - 1)){
-                        gameover
-                        return
+                        
+                        return gameover
                     }
                     elseif(isFood $x ($y - 1)){
                         randomDot
-                        #break
                     }
                     else{
                         updateTail
-
-                        #$global:snake[$global:head].x = $x
-                        #$global:snake[$global:head].y = --$y
                     }
-                        $global:snake.Add([psobject] @{
-                            x = $x
-                            y = --$y
-                        })
+                    $global:snake.Add([psobject] @{
+                        x = $x
+                        y = --$y
+                    })
+                    $lastMove = "w"
                 }
                 elseif($lastKey -eq 'a'){
                     if(collision ($x - 1) $y){
-                        gameover
-                        return
+                        
+                        return gameover
                     }
                     if(isFood ($x - 1) $y){
                         randomDot
-                        #break
                     }
                     else{
                         updateTail
-
-                        #$global:snake[$global:head].x = --$x
-                        #$global:snake[$global:head].y = $y
                     }
-                        $global:snake.Add([psobject] @{
-                            x = --$x
-                            y = $y
-                        })
+                    $global:snake.Add([psobject] @{
+                        x = --$x
+                        y = $y
+                    })
+                    $lastMove = "a"
                 }
                 elseif($lastKey -eq 's'){
                     if(collision $x ($y + 1)){
-                        gameover
-                        return
+                        
+                        return gameover
                     }
                     if(isFood $x ($y + 1)){
                         randomDot
@@ -241,39 +281,37 @@ function main(){
                     }
                     else{
                         updateTail
-
-                        #$global:snake[$global:head].x = $x
-                        #$global:snake[$global:head].y = ++$y
                     }
-                        $global:snake.Add([psobject] @{
-                            x = $x
-                            y = ++$y
-                        })
+                    $global:snake.Add([psobject] @{
+                        x = $x
+                        y = ++$y
+                    })
+                    $lastMove = "s"
                 }
                 elseif($lastKey -eq 'd'){
                     if(collision ($x + 1) $y){
-                        gameover
-                        return
+                        
+                        return gameover
                     }
                     if(isFood ($x + 1) $y){
                         randomDot
-                        #break
                     }
                     else{
                         updateTail
-
-                        #$global:snake[$global:head].x = ++$x
-                        #$global:snake[$global:head].y = $y
                     }
-                        $global:snake.Add([psobject] @{
-                            x = ++$x
-                            y = $y
-                        })
+                    $global:snake.Add([psobject] @{
+                        x = ++$x
+                        y = $y
+                    })
+                    $lastMove = "d"
                 }
                 else{
                     continue
                 }
                 dot $x $y
+                write-Host "Score:$global:foodCount" -NoNewline
+                resetCursor
+
                 if($lastKey -eq 'a' -or $lastKey -eq 'd'){
                     $time = (Get-Date).AddMilliseconds([int]($milliseconds*63/100))
                 }
@@ -281,26 +319,45 @@ function main(){
                     $time = (Get-Date).AddMilliseconds($milliseconds)
                 }
             } catch{
-                #$Error
-                Write-Host "#### HIT A WALL ####"
-                return
+                return gameover
             }
         }
 
         if([System.Console]::KeyAvailable){ #$host.UI.RawUI.KeyAvailable does not work
             $capture = $host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")
-            if($capture.character -eq 'w' -and $lastKey -ne 's'){
+            if(($capture.character -eq 'w' -or $capture.virtualkeycode -eq 38) -and $lastMove -ne 's'){
                 $lastKey = 'w'
             }
-            elseif($capture.character -eq 'a' -and $lastKey -ne 'd'){
+            elseif(($capture.character -eq 'a' -or $capture.virtualkeycode -eq 37) -and $lastMove -ne 'd'){
                 $lastKey = 'a'
             }
-            elseif($capture.character -eq 's' -and $lastKey -ne 'w'){
+            elseif(($capture.character -eq 's' -or $capture.virtualkeycode -eq 40) -and $lastMove -ne 'w'){
                 $lastKey = 's'
             }
-            elseif($capture.character -eq 'd' -and $lastKey -ne 'a'){
+            elseif(($capture.character -eq 'd' -or $capture.virtualkeycode -eq 39) -and $lastMove -ne 'a'){
                 $lastKey = 'd'
             }
         }
     }
 }
+
+function main(){
+    while(startGame){}
+    Write-Host ""
+    Write-Host ""
+    Write-Host "`t`t`tThanks for playing!" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "This program will end in 3 seconds..." -NoNewline
+    sleep -Seconds 1
+    [System.Console]::SetCursorPosition(25, $global:windowHeight + 3)
+    Write-Host "2" -NoNewline
+    Sleep -Seconds 1
+    [System.Console]::SetCursorPosition(25, $global:windowHeight + 3)
+    Write-Host "1" -NoNewline
+    Sleep -Seconds 1
+    [System.Console]::SetCursorPosition(25, $global:windowHeight + 3)
+    Write-Host "0"
+    [System.Console]::CursorVisible = $true
+}
+
+main
