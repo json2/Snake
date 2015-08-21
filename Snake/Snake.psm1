@@ -147,7 +147,7 @@ function updateTail(){
     $global:snake.RemoveAt(0)
 }
 
-function gameover(){
+function gameOver(){
     [System.Console]::SetCursorPosition([int](($global:topRight.x - $global:topLeft.x)/2) - 5, $windowHeight-2)
     Write-Host "Game Over" -ForegroundColor Red
     Write-Host "Would you like to play again? (Y/N):" -NoNewline -ForegroundColor Cyan
@@ -157,6 +157,7 @@ function gameover(){
             return $true
         }
         elseif($response.character -eq 'n'){
+            #Write-Host "returning false"
             return $false
         }
     } while($true)
@@ -205,7 +206,7 @@ function startGame(){
     })
 
     dot $x $y
-    $milliseconds = difficulty #50
+    $milliseconds = difficulty 
     $time = (Get-Date).AddMilliseconds($milliseconds)
     
     Write-Host "Use arrow keys or W-A-S-D to move. Move in any direction to start..." -NoNewline
@@ -230,7 +231,6 @@ function startGame(){
     }
     resetCursor -clearLine
 
-    #draw first food
     randomDot
 
     while($true){
@@ -238,8 +238,7 @@ function startGame(){
             try{
                 if($lastKey -eq 'w'){
                     if(collision $x ($y - 1)){
-                        
-                        return gameover
+                        return gameOver
                     }
                     elseif(isFood $x ($y - 1)){
                         randomDot
@@ -247,67 +246,55 @@ function startGame(){
                     else{
                         updateTail
                     }
-                    $global:snake.Add([psobject] @{
-                        x = $x
-                        y = --$y
-                    })
+                    $y--
                     $lastMove = "w"
                 }
                 elseif($lastKey -eq 'a'){
                     if(collision ($x - 1) $y){
-                        
-                        return gameover
+                        return gameOver
                     }
-                    if(isFood ($x - 1) $y){
+                    elseif(isFood ($x - 1) $y){
                         randomDot
                     }
                     else{
                         updateTail
                     }
-                    $global:snake.Add([psobject] @{
-                        x = --$x
-                        y = $y
-                    })
+                    $x--
                     $lastMove = "a"
                 }
                 elseif($lastKey -eq 's'){
                     if(collision $x ($y + 1)){
-                        
-                        return gameover
+                        return gameOver
                     }
-                    if(isFood $x ($y + 1)){
+                    elseif(isFood $x ($y + 1)){
                         randomDot
-                        #break
                     }
                     else{
                         updateTail
                     }
-                    $global:snake.Add([psobject] @{
-                        x = $x
-                        y = ++$y
-                    })
+                    $y++
                     $lastMove = "s"
                 }
                 elseif($lastKey -eq 'd'){
                     if(collision ($x + 1) $y){
-                        
-                        return gameover
+                        return gameOver
                     }
-                    if(isFood ($x + 1) $y){
+                    elseif(isFood ($x + 1) $y){
                         randomDot
                     }
                     else{
                         updateTail
                     }
-                    $global:snake.Add([psobject] @{
-                        x = ++$x
-                        y = $y
-                    })
+                    $x++
                     $lastMove = "d"
                 }
                 else{
                     continue
                 }
+                $global:snake.Add([psobject] @{
+                    x = $x
+                    y = $y
+                })
                 dot $x $y
                 write-Host "Score:$global:foodCount" -NoNewline
                 resetCursor
@@ -319,7 +306,7 @@ function startGame(){
                     $time = (Get-Date).AddMilliseconds($milliseconds)
                 }
             } catch{
-                return gameover
+                return gameOver
             }
         }
 
@@ -359,5 +346,3 @@ function main(){
     Write-Host "0"
     [System.Console]::CursorVisible = $true
 }
-
-main
